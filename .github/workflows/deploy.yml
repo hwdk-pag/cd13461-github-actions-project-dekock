@@ -58,9 +58,10 @@ jobs:
                 key: node-modules-${{ hashFiles('package-lock.json') }}
 
             # Install all the dependencies needed, if no cache hit, otherwise skip this step
+            # npm install (not ci) lets npm update the lockfile when pagefind version changes
             - name: Install dependencies (no cache hit)
               if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: npm ci
+              run: npm install
 
             # Echo to indicate that the cache was hit and the install step was skipped
             - name: Skip Install dependencies (cache hit)
@@ -127,9 +128,10 @@ jobs:
                 key: node-modules-${{ hashFiles('package-lock.json') }}
 
             # Install all the dependencies needed, if no cache hit, otherwise skip this step
+            # npm install (not ci) lets npm update the lockfile when pagefind version changes
             - name: Install dependencies (no cache hit)
               if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: npm ci
+              run: npm install
 
             # Echo to indicate that the cache was hit and the install step was skipped
             - name: Skip Install dependencies (cache hit)
