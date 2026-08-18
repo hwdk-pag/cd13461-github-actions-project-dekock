@@ -79,7 +79,7 @@ jobs:
               env:
                 URL_CHECKER_TIMEOUT: ${{ vars.URL_CHECKER_TIMEOUT }}
               run: |
-                for script in scripts/**/*.sh; do
+                for script in script/**/*.sh; do
                   bash "$script"
                 done
             
