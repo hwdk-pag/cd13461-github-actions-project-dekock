@@ -159,7 +159,6 @@ jobs:
               uses: actions/upload-pages-artifact@v5
               with:
                 # Upload _site folder
-                name: built_site
                 path: "_site/."
 
             # Add a summary of the build job to the job summary
@@ -189,13 +188,6 @@ jobs:
       
       steps:
 
-            # download built site step before the deployment step
-            -   name: Download content of built _site
-                uses: actions/download-artifact@v4
-                with:
-                    name: built_site
-                    path: "_site/."
-        
             # Deploy the site to GitHub pages
             -   name: Deploy to GitHub Pages
                 id: deployment  # <-- this is what makes steps.deployment.* available
