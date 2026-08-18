@@ -1,0 +1,237 @@
+# --- Deploy Workflow for CorpX
+# Author: Hugo de Kock
+
+name: Deploy Workflow for CorpX
+
+run-name: Deploy Workflow
+
+
+# CI Triggers
+on:
+    # when push to main and only main
+    push:
+      branches: ["main"]
+    # ignore changes to these files
+      paths-ignore:
+          - ".gitignore"
+          - "README.md"
+          - "CONTRIBUTING.md"
+          - "LICENSE"
+    # when a pull_request is created against the main branch only
+    pull_request:
+        branches: ["main"]
+    # Manual trigger - in case of an emergency
+    workflow_dispatch:
+
+# Ensure maximum of 1 run at all times.
+# If other runs are queued, the older runs are canceled
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Workflow has 3 jobs: test, build, deploy  
+jobs:
+
+    # Test Job
+    test:
+        runs-on: ubuntu-latest
+        
+        # The job fails if any of its steps fail.
+        steps:
+            
+            # Clone the repository
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            # Setup Node.js
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: 18
+
+            # Use the cache to speed up the process of installing dependencies
+            - name: Cache or retrieve dependencies
+              id: cache-dependencies
+              uses: actions/cache@v5
+              with:
+                path: node_modules
+                key: node-modules-${{ hashFiles('package-lock.json') }}
+
+            # Install all the dependencies needed, if no cache hit, otherwise skip this step
+            - name: Install dependencies (no cache hit)
+              if: steps.cache-dependencies.outputs.cache-hit != 'true'
+              run: npm ci
+
+            # Echo to indicate that the cache was hit and the install step was skipped
+            - name: Skip Install dependencies (cache hit)
+              if: steps.cache-dependencies.outputs.cache-hit == 'true'
+              run: echo "Cache hit - using cached node_modules"
+
+            # Run all the linters
+            - name: Run linters
+              run: npm run lint
+            
+            # Run all the scripts in the folder scripts/**
+            # Note: repository variable URL_CHECKER_TIMEOUT ist
+            # a timeout value for the script/url-checker.js script
+            - name: Run scripts
+              env:
+                URL_CHECKER_TIMEOUT: ${{ vars.URL_CHECKER_TIMEOUT }}
+              run: |
+                for script in scripts/**/*.sh; do
+                  bash "$script"
+                done
+            
+
+            # Add a summary of the test job to the job summary
+            - name: Test job summary
+              if: always()
+              run: |
+                echo "# Test Job" >> $GITHUB_STEP_SUMMARY
+                echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+                echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+                echo "| Lint | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+                echo "| Scripts | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+
+    # BUILD job
+    # The job fails if any of its steps fail.
+    build:
+        # Make sure that the test job ran and succeeded
+        needs: test
+        if: ${{ needs.test.result == 'success' }}
+
+        # Job runs on Ubuntu latest
+        runs-on: ubuntu-latest
+
+        steps:
+            # Checkout repo
+            - name: Checkout the repository
+              uses: actions/checkout@v4
+
+            # Setup Github Pages
+            - name: Setup pages
+              uses: actions/configure-pages@v4
+
+            # Setup Node.js
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                node-version: 18
+
+            # Use the cache to speed up the process of installing dependencies
+            - name: Cache or retrieve dependencies
+              id: cache-dependencies
+              uses: actions/cache@v5
+              with:
+                path: node_modules
+                key: node-modules-${{ hashFiles('package-lock.json') }}
+
+            # Install all the dependencies needed, if no cache hit, otherwise skip this step
+            - name: Install dependencies (no cache hit)
+              if: steps.cache-dependencies.outputs.cache-hit != 'true'
+              run: npm ci
+
+            # Echo to indicate that the cache was hit and the install step was skipped
+            - name: Skip Install dependencies (cache hit)
+              if: steps.cache-dependencies.outputs.cache-hit == 'true'
+              run: echo "Cache hit - using cached node_modules"
+
+            # Build the static pages
+            - name: Build static pages
+              # In order for 11ty to build your site successfully, 
+              # it requires an environment variable PATH_PREFIX to be set 
+              # and to have the value of the name of your repository
+              env:
+                PATH_PREFIX: ${{ vars.PATH_PREFIX }}
+              # if: ${{ vars.PATH_PREFIX == github.event.repository.name }} 
+              # The PATH_PREFIX should be of the following format: 
+              # /repository name/. Make sure that the repository name 
+              # does not include the repository owner! 
+              # Do not forget the / at the start and end
+
+              # Run eleventy:prod to build the production build
+              run: npm run eleventy:prod
+
+            # Upload all the content of the built _site as an artifact
+            - name: Upload content of built _site
+              uses: actions/upload-pages-artifact@v5
+              with:
+                # Upload _site folder
+                name: built_site
+                path: "_site/."
+
+            # Add a summary of the build job to the job summary
+            - name: Build job summary
+              if: always()
+              run: |
+                echo "# Build Job" >> $GITHUB_STEP_SUMMARY
+                echo "| Item | Detail |" >> $GITHUB_STEP_SUMMARY
+                echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+                echo "| Artifact | built_site |" >> $GITHUB_STEP_SUMMARY
+                echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY    
+
+
+    # DEPLOY Job
+    deploy:
+
+      # The deploy job needs permissions: 
+      permissions:
+        pages: write  # For GitHub Page
+        id-token: write  # For GitHub Page
+        issues: write # For GitHub CLI
+
+      runs-on: ubuntu-latest
+      # Never deploy changes if any of the previous jobs (test, build) fail
+      needs: [test, build]
+      if: ${{ needs.test.result == 'success' && needs.build.result == 'success' }}
+      
+      steps:
+
+            # download built site step before the deployment step
+            -   name: Download content of built _site
+                uses: actions/download-artifact@v4
+                with:
+                    name: built_site
+                    path: "_site/."
+        
+            # Deploy the site to GitHub pages
+            -   name: Deploy to GitHub Pages
+                id: deployment  # <-- this is what makes steps.deployment.* available
+                uses: actions/deploy-pages@v5
+
+            # Using the GitHub CLI, authenticate to GitHub with GITHUB_TOKEN and 
+            # create an issue that reports the status of the deployment. 
+            # The issue should have:
+            # Title: <date> - Deployment: <status>
+            # Make sure to replace <date> with today's date
+            # Make sure to replace <status> with the outcome of the deployment (succeeded or failed)
+            # Body: URL: <url>
+            # Make sure to replace <url> with the link to the knowledge base
+            
+            # Add a summary of the deployment job to the job summary
+
+            - name: Report deployment status
+              if: always()
+              run: |
+                gh auth login --with-token <<<"${{ secrets.GITHUB_TOKEN }}"
+                if [ "${{ steps.deployment.outcome }}" = "success" ]; then
+                  STATUS="succeeded"
+                else
+                  STATUS="failed"
+                fi
+                DATE=$(date +%Y-%m-%d)
+                URL="${{ steps.deployment.outputs.page_url }}"
+                gh issue create \
+                  --title "${DATE} - Deployment: ${STATUS}" \
+                  --body "URL: ${URL}"
+
+                echo "# Deployment Summary" >> $GITHUB_STEP_SUMMARY
+                echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+                echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+                echo "| Status | ${STATUS} |" >> $GITHUB_STEP_SUMMARY
+                echo "| Date | ${DATE} |" >> $GITHUB_STEP_SUMMARY
+                echo "| URL | ${URL} |" >> $GITHUB_STEP_SUMMARY
+
+
+          
+
