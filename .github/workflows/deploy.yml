@@ -206,8 +206,9 @@ jobs:
 
             - name: Report deployment status
               if: always()
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                gh auth login --with-token <<<"${{ secrets.GITHUB_TOKEN }}"
                 if [ "${{ steps.deployment.outcome }}" = "success" ]; then
                   STATUS="succeeded"
                 else
@@ -216,6 +217,7 @@ jobs:
                 DATE=$(date +%Y-%m-%d)
                 URL="${{ steps.deployment.outputs.page_url }}"
                 gh issue create \
+                  --repo "${{ github.repository }}" \
                   --title "${DATE} - Deployment: ${STATUS}" \
                   --body "URL: ${URL}"
 
