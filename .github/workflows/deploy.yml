@@ -41,11 +41,11 @@ jobs:
             
             # Clone the repository
             - name: Checkout repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             # Setup Node.js
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                 node-version: 22
 
@@ -107,15 +107,15 @@ jobs:
         steps:
             # Checkout repo
             - name: Checkout the repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             # Setup Github Pages
             - name: Setup pages
-              uses: actions/configure-pages@v4
+              uses: actions/configure-pages@v5
 
             # Setup Node.js
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                 node-version: 22
 
