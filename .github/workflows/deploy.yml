@@ -47,7 +47,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                node-version: 18
+                node-version: 22
 
             # Use the cache to speed up the process of installing dependencies
             - name: Cache or retrieve dependencies
@@ -70,7 +70,7 @@ jobs:
 
             # Run all the linters
             - name: Run linters
-              run: npm run lint
+              run: npm run lint:all
             
             # Run all the scripts in the folder scripts/**
             # Note: repository variable URL_CHECKER_TIMEOUT ist
@@ -117,7 +117,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                node-version: 18
+                node-version: 22
 
             # Use the cache to speed up the process of installing dependencies
             - name: Cache or retrieve dependencies
